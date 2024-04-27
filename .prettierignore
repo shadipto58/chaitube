@@ -1,0 +1,19 @@
+/.vscode
+/node_modules
+./dist
+*.env
+.env
+.env.*
+# Ignore node_modules directory
+node_modules/
+
+# Ignore build output directories
+build/
+dist/
+
+# Ignore any files or directories starting with a dot
+.*
+
+# Ignore any files with specific extensions
+*.log
+*.json
