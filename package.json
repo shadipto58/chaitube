@@ -5,14 +5,15 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "dev": "nodeemon src/index.js"
+    "dev": "nodemon -r dotenv/config --experimental-json-modules src/index.js"
   },
   "keywords": [],
   "author": "shadipto mojumder",
   "license": "ISC",
   "dependencies": {
     "dotenv": "^16.4.5",
-    "express": "^4.19.2"
+    "express": "^4.19.2",
+    "mongoose": "^8.3.2"
   },
   "devDependencies": {
     "nodemon": "^3.1.0",
