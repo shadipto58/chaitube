@@ -1,13 +1,13 @@
 const asyncHandler=(requestHandler)=>{
-    (req,res,next)=>{
-        Promise.resolve(requestHandler(req,res,next)).catch(err)=>next(err)
+    return (req,res,next)=>{
+        Promise.resolve(requestHandler(req,res,next)).catch((error) => next(error))
     }
 }
 
 
 export { asyncHandler }
 
-
+// Its also right way
 // const asyncHandler=(fn)=>async(req,res,next)=>{
 //     try {
 //         await fn(req,res,next)
