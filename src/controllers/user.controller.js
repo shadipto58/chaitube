@@ -17,7 +17,6 @@ const registerUser = asyncHandler ( async (req,res) => {
 
 
     const { username, fullname, email, password } = req.body;
-    console.log("email",email);
 
     // Here i check if any field are empty 
     if(
@@ -31,7 +30,7 @@ const registerUser = asyncHandler ( async (req,res) => {
     //     throw new ApiError(400, "fullname is requered")
     // }
 
-    const existUser = User.findOne({
+    const existUser = await User.findOne({
         $or: [{ username }, { email }]
     })
 
@@ -40,7 +39,13 @@ const registerUser = asyncHandler ( async (req,res) => {
     }
 
     const avatarLocalPath = req.files?.avatar[0]?.path;
-    const coverImageLocalPath = req.files?.coverImage[0]?.path;
+    
+    // const coverImageLocalPath = req.files?.coverImage[0]?.path;
+    
+    let coverImageLocalPath;
+    if (req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.length > 0) {
+        coverImageLocalPath = req.files.coverImage[0].path ;
+    }
 
     if(!avatarLocalPath){
         throw new ApiError(400, "Avatar is required")
@@ -48,9 +53,11 @@ const registerUser = asyncHandler ( async (req,res) => {
 
     const avatar = await uploadOnCloudinary(avatarLocalPath);
     const coverImage = await uploadOnCloudinary(coverImageLocalPath);
+    // console.log("avatar er is",avatar);
+   
 
     if(!avatar){
-        throw new ApiError(400, "Avatar is required")
+        throw new ApiError(400, "Avatar is required 2")
     }
     
     const user = await User.create({
