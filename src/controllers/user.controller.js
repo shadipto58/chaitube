@@ -4,6 +4,9 @@ import { User } from "../models/user.model.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken";
+import {v2 as cloudinary} from 'cloudinary';
+import fs from "fs"
+import Base64ToFileConverter from "../utils/Base64ToFileConverter.js";
 
 
 const generateAccessTokenAndRefreshToken = async (userId) => {
@@ -22,6 +25,20 @@ const generateAccessTokenAndRefreshToken = async (userId) => {
     }
 }
 
+// Here if file come in body then it will work
+function base64ToFile(base64String, filePath) {
+    // Remove header from base64 string
+    const base64Data = base64String.replace(/^data:image\/\w+;base64,/, '');
+
+    // Create buffer from base64 string
+    const imageBuffer = Buffer.from(base64Data, 'base64');
+
+    // Write buffer to file
+    fs.writeFileSync(filePath, imageBuffer);
+
+    return filePath;
+}
+
 const registerUser = asyncHandler( async (req,res) => {
     // Get user details from frontend
     // Validation of Data come from frontend
@@ -34,6 +51,10 @@ const registerUser = asyncHandler( async (req,res) => {
 
 
     const { username, fullname, email, password } = req.body;
+    // console.log("Request is:",req);
+    // console.log("Request body is:",req.body);
+    // console.log("Request files is:",req.files);
+    // console.log("Request Body is:",req.body);
 
     // Here i check if any field are empty 
     if(
@@ -55,37 +76,55 @@ const registerUser = asyncHandler( async (req,res) => {
         throw new ApiError(409, "username or email already exist")
     }
 
-    const avatarLocalPath = req.files?.avatar[0]?.path;
+    let avatarUrl = "";
+    let coverImageUrl = "";
     
-    // const coverImageLocalPath = req.files?.coverImage[0]?.path;
+
+    // Check if avatar is present in form data
+    if (req.files && req.files.avatar) {
+        const avatarLocalPath = req.files?.avatar[0]?.path;
+        const avatarUpload = await uploadOnCloudinary(avatarLocalPath);
+        avatarUrl = avatarUpload.url;
+    }
+
+    // Check if coverImage is present in form data
+    if (req.files && req.files.coverImage) {
+        const coverImageLocalPath = req.files?.coverImage[0]?.path;
+        const coverImageUpload = await uploadOnCloudinary(coverImageLocalPath);
+        coverImageUrl = coverImageUpload.url;
+    }
+
+  
+    // If avatar is not found in form data, check if it is present in the request body
+    if (!avatarUrl && req.body.avatar) {
+        const avatarPath = base64ToFile(req.body.avatar,"./public/temp/avatar.jpg");
+        console.log("avatarPath 144 is",avatarPath);
+        const avatarUpload = await uploadOnCloudinary(String(avatarPath));
+        avatarUrl = avatarUpload.url
+    }
+     // If coverImage is not found in form data, check if it is present in the request body
+     if (!coverImageUrl && req.body.coverImage) {
+        const coverImageLocalePath = Base64ToFileConverter(req.body.coverImage,"./public/temp/coverImage.jpg");
+        console.log("coverImageLocalePath 151 is",coverImageLocalePath);
+        const coverImageUploadOnCloudinary = await uploadOnCloudinary(String(coverImageLocalePath))
+        coverImageUrl = coverImageUploadOnCloudinary.url
+       
+    }
+
+    console.log("avatarUrl 124 line",avatarUrl);
+    console.log("coverImageUrl 125 line",coverImageUrl);
+
     
-    let coverImageLocalPath;
-    if (req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.length > 0) {
-        coverImageLocalPath = req.files.coverImage[0].path ;
-    }
-
-    if(!avatarLocalPath){
-        throw new ApiError(400, "Avatar is required")
-    }
-
-    const avatar = await uploadOnCloudinary(avatarLocalPath);
-    const coverImage = await uploadOnCloudinary(coverImageLocalPath);
-    // console.log("avatar er is",avatar);
-   
-
-    if(!avatar){
-        throw new ApiError(400, "Avatar is required 2")
-    }
     
     const user = await User.create({
         username: username.toLowerCase(),
         fullname,
-        avatar: avatar.url,
-        coverImage: coverImage?.url || "",
+        avatar: avatarUrl,
+        coverImage: coverImageUrl || "",
         email,
         password
     })
-
+   
     const createdUser = await User.findById(user._id).select(
         "-password -refreshToken"
     )
