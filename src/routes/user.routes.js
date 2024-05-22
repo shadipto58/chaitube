@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { changeCurrentPassword, getCurrentUser, loginUser, logoutUser, refreshAccessToken, registerUser, updateUser, updateUserAvatar, updateUserCoverImage } from "../controllers/user.controller.js";
+import { changeCurrentPassword, generateOtp, getCurrentUser, loginUser, logoutUser, refreshAccessToken, registerUser, resetPassword, updateUser, updateUserAvatar, updateUserCoverImage ,verifyOtp,verifyUser} from "../controllers/user.controller.js";
 import { upload } from "../middlewares/multer.middleware.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
 
@@ -23,6 +23,11 @@ router.route("/register").post(
 )
 
 router.route("/login").post(loginUser)
+router.route("/verify-user").post(verifyUser)
+router.route('/generateOTP').post(generateOtp) // generate random OTP
+router.route('/verifyOTP').post(verifyOtp) // verify generated OTP
+router.route('/resetPassword').post(resetPassword)
+
 
 
 // Secured Routes

@@ -7,6 +7,9 @@ import jwt from "jsonwebtoken";
 import {v2 as cloudinary} from 'cloudinary';
 import fs from "fs"
 import Base64ToFileConverter from "../utils/Base64ToFileConverter.js";
+import GenerateOTP from "../utils/GenerateOTP.js";
+import { sendMail } from "./mailer.js";
+
 
 
 const generateAccessTokenAndRefreshToken = async (userId) => {
@@ -25,20 +28,6 @@ const generateAccessTokenAndRefreshToken = async (userId) => {
     }
 }
 
-// Here if file come in body then it will work
-function base64ToFile(base64String, filePath) {
-    // Remove header from base64 string
-    const base64Data = base64String.replace(/^data:image\/\w+;base64,/, '');
-
-    // Create buffer from base64 string
-    const imageBuffer = Buffer.from(base64Data, 'base64');
-
-    // Write buffer to file
-    fs.writeFileSync(filePath, imageBuffer);
-
-    return filePath;
-}
-
 const registerUser = asyncHandler( async (req,res) => {
     // Get user details from frontend
     // Validation of Data come from frontend
@@ -50,15 +39,15 @@ const registerUser = asyncHandler( async (req,res) => {
     // Return response 
 
 
-    const { username, fullname, email, password } = req.body;
+    const { fullname, email, password } = req.body;
     // console.log("Request is:",req);
     // console.log("Request body is:",req.body);
     // console.log("Request files is:",req.files);
-    // console.log("Request Body is:",req.body);
+    console.log("Request Body is:",req.body);
 
     // Here i check if any field are empty 
     if(
-        [fullname, email, username, password].some((field)=> field.trim() === "")
+        [fullname, email, password].some((field)=> field.trim() === "")
     ){
         throw new ApiError(400, "all field are requered")
     }
@@ -69,58 +58,15 @@ const registerUser = asyncHandler( async (req,res) => {
     // }
 
     const existUser = await User.findOne({
-        $or: [{ username }, { email }]
+        $or: [{ fullname }, { email }]
     })
 
     if(existUser){
         throw new ApiError(409, "username or email already exist")
     }
 
-    let avatarUrl = "";
-    let coverImageUrl = "";
-    
-
-    // Check if avatar is present in form data
-    if (req.files && req.files.avatar) {
-        const avatarLocalPath = req.files?.avatar[0]?.path;
-        const avatarUpload = await uploadOnCloudinary(avatarLocalPath);
-        avatarUrl = avatarUpload.url;
-    }
-
-    // Check if coverImage is present in form data
-    if (req.files && req.files.coverImage) {
-        const coverImageLocalPath = req.files?.coverImage[0]?.path;
-        const coverImageUpload = await uploadOnCloudinary(coverImageLocalPath);
-        coverImageUrl = coverImageUpload.url;
-    }
-
-  
-    // If avatar is not found in form data, check if it is present in the request body
-    if (!avatarUrl && req.body.avatar) {
-        const avatarPath = base64ToFile(req.body.avatar,"./public/temp/avatar.jpg");
-        console.log("avatarPath 144 is",avatarPath);
-        const avatarUpload = await uploadOnCloudinary(String(avatarPath));
-        avatarUrl = avatarUpload.url
-    }
-     // If coverImage is not found in form data, check if it is present in the request body
-     if (!coverImageUrl && req.body.coverImage) {
-        const coverImageLocalePath = Base64ToFileConverter(req.body.coverImage,"./public/temp/coverImage.jpg");
-        console.log("coverImageLocalePath 151 is",coverImageLocalePath);
-        const coverImageUploadOnCloudinary = await uploadOnCloudinary(String(coverImageLocalePath))
-        coverImageUrl = coverImageUploadOnCloudinary.url
-       
-    }
-
-    console.log("avatarUrl 124 line",avatarUrl);
-    console.log("coverImageUrl 125 line",coverImageUrl);
-
-    
-    
     const user = await User.create({
-        username: username.toLowerCase(),
         fullname,
-        avatar: avatarUrl,
-        coverImage: coverImageUrl || "",
         email,
         password
     })
@@ -146,7 +92,7 @@ const loginUser = asyncHandler( async (req, res) => {
     // If password is correct then generate refresh token
     // Return response
 
-    const { email, username, password } = req.body;
+    const { email , password } = req.body;
 
     if (!email) {
         throw new ApiError(400, "Email is requerd")
@@ -163,7 +109,7 @@ const loginUser = asyncHandler( async (req, res) => {
     const isPasswordValid = await user.isPasswordCorrect(password);
 
     if (!isPasswordValid) {
-        throw new ApiError(401, "Password is incorrect")
+        throw new ApiError(401, "Password is incorrect User or Password don't match!!")
     }
 
     const {accessToken , refreshToken} = await generateAccessTokenAndRefreshToken(user._id)
@@ -172,8 +118,10 @@ const loginUser = asyncHandler( async (req, res) => {
 
     const options = {
         httpOnly: true,
-        secure: true,
-    }
+        secure: true, // Set to true if using HTTPS
+        sameSite: 'None', // Must be 'None' for cross-site cookies
+        maxAge: 24 * 60 * 60 * 1000 // 1 day in milliseconds
+      };
 
     return res
     .status(200)
@@ -182,10 +130,42 @@ const loginUser = asyncHandler( async (req, res) => {
     .json(
         new ApiResponse(200,
             {
-                user:
-                {loggedInUser, refreshToken, accessToken}
+                loggedInUser,
+                accessToken,
+                refreshToken
             },
             "User login successfully")
+    )
+})
+const verifyUser = asyncHandler( async (req, res) => {
+    // Colect data from Login Form
+    // Check if user exist or not
+    // If user exist then Find the user
+    // Check if password is correct or not
+    // If password is correct then generate refresh token
+    // Return response
+
+    const { email  } = req.body;
+
+    if (!email) {
+        throw new ApiError(400, "Email is requerd")
+    }
+
+    const userfound = await User.findOne({
+        $or: [{ email }]
+    })
+
+    if (!userfound) {
+        throw new ApiError(400, "User does not exist")
+    }
+
+    const user = await User.findById(userfound._id).select("-password -refresh-token")  
+
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(200, user ,"User Found")
     )
 })
 
@@ -331,8 +311,8 @@ const updateUser = asyncHandler( async (req, res) => {
     ).select("-password")
 
     return res
-   .status(200)
-   .json(
+    .status(200)
+    .json(
         new ApiResponse(200, user, "User updated successfully")
     )
 })
@@ -405,5 +385,100 @@ const updateUserCoverImage = asyncHandler( async (req, res) => {
     )
 })
 
+const generateOtp = asyncHandler( async (req, res) => {
+    const otp = await GenerateOTP()
+    const { email }= req.body;
+    // console.log("The mail come from fornt",email);
+    
+    try {
+        const emailResult = await sendMail({
+            userEmail: email,
+            text: "Your OTP for verification",
+            subject: "OTP Verification",
+            otp: otp
+        });
+        console.log("Email sent result:", emailResult.messageId);
 
-export { registerUser , loginUser , logoutUser , refreshAccessToken , changeCurrentPassword ,getCurrentUser , updateUser , updateUserAvatar ,updateUserCoverImage }
+        if(!(emailResult && emailResult.messageId)){
+            throw new ApiError(400, "Error when sending OTP")
+        }
+        
+         // Find the user and update their OTP
+         const user = await User.findOne({ email });
+
+         if (!user) {
+            throw new ApiError(400, "User not found when sending OTP")
+         }
+
+         user.otp = otp; 
+        await user.save();
+
+        return res.status(200).json(
+            new ApiResponse(201, { OTP: otp }, "OTP sent successfully!")
+        );
+
+    } catch (error) {
+        console.error("Error sending email:", error);
+        return res.status(500).json(
+            new ApiResponse(500, null, "Failed to send OTP email")
+        );
+    }
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(201,{OTP:otp} ,"Verify Successsfully op!")
+    )
+})
+
+const verifyOtp = asyncHandler( async (req, res) => {
+    const { email , otp } = req.body;
+    console.log("The otp and mail fornt",otp,email);
+    
+    // Find the user and update their OTP
+    const user = await User.findOne({ email });
+    // console.log("The user:",user);
+    
+
+    if (!user) {
+       throw new ApiError(400, "User not found when sending OTP")
+    }
+
+    if (user.otp!== parseInt(otp)) {
+        throw new ApiError(400, "Invalid OTP")
+    }
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(201,"OTP Verify Successsfull")
+    )
+})
+
+const resetPassword = asyncHandler( async (req, res) => {
+    const { email , password } = req.body;
+
+    
+    // Find the user and update their OTP
+    const user = await User.findOne({ email });
+    console.log("The user:",user);
+    
+
+    if (!user) {
+       throw new ApiError(400, "User not found when reset password")
+    }
+    
+
+    user.otp = "";
+    user.password =  password;
+    await user.save();
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(200,"Password Successsfully reset")
+    )
+})
+
+
+export { generateOtp , verifyOtp , resetPassword , registerUser , loginUser , verifyUser , logoutUser , refreshAccessToken , changeCurrentPassword ,getCurrentUser , updateUser , updateUserAvatar ,updateUserCoverImage }
