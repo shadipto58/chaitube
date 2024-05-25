@@ -8,7 +8,7 @@ import {v2 as cloudinary} from 'cloudinary';
 import fs from "fs"
 import Base64ToFileConverter from "../utils/Base64ToFileConverter.js";
 import GenerateOTP from "../utils/GenerateOTP.js";
-import { sendMail } from "./mailer.js";
+import { sendMail } from "../utils/mailer.js";
 
 
 
@@ -427,7 +427,7 @@ const generateOtp = asyncHandler( async (req, res) => {
     return res
     .status(200)
     .json(
-        new ApiResponse(201,{OTP:otp} ,"Verify Successsfully op!")
+        new ApiResponse(201,"Verify Successsfully op!")
     )
 })
 

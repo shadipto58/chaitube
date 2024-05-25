@@ -11,8 +11,8 @@ let nodeConfig = {
     port: 587,
     secure: false, // true for 465, false for other ports
     auth: {
-        user: '',
-        pass: ''
+        user: 'taposhghosh2010@gmail.com',
+        pass: 'tfen hfje vuti rdls'
     },
     connectionTimeout: 10000 // 10 seconds
 }
